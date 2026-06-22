@@ -319,7 +319,9 @@ export default function Home() {
             </div>
           )}
 
-          <button onClick={generate} disabled={loading || upgradeLoading}
+          <button
+            onClick={usedCount >= FREE_LIMIT && plan !== "pro" ? () => setShowUpgrade(true) : generate}
+            disabled={loading || upgradeLoading}
             className="w-full py-4 font-black text-sm tracking-[0.3em] uppercase disabled:opacity-30 transition-colors"
             style={{
               backgroundColor: usedCount >= FREE_LIMIT && plan !== "pro" ? "#D6D3D1" : "#1C1917",
