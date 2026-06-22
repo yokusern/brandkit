@@ -1,11 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAdminAuth, getAdminDb } from "@/lib/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const FREE_LIMIT = 5;
+
+let _client: Anthropic | null = null;
+function getClient() {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+  return _client;
+}
 
 export async function POST(req: NextRequest) {
+  // Auth
+  const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
+  if (!token) return NextResponse.json({ error: "ログインが必要です", needsAuth: true }, { status: 401 });
+
+  let uid: string;
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(token);
+    uid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: "認証エラー", needsAuth: true }, { status: 401 });
+  }
+
+  // Usage check
+  const db = getAdminDb();
+  const userRef = db.collection("bk_users").doc(uid);
+  const userDoc = await userRef.get();
+  const userData = userDoc.data() || {};
+
+  if (userData.plan !== "pro") {
+    const used = userData.freeUsed || 0;
+    if (used >= FREE_LIMIT) {
+      return NextResponse.json(
+        { error: `無料枠（${FREE_LIMIT}回）を使い切りました`, needsUpgrade: true, used, limit: FREE_LIMIT },
+        { status: 403 }
+      );
+    }
+    await userRef.set({ freeUsed: used + 1, plan: "free", updatedAt: new Date() }, { merge: true });
+  }
+
   try {
     const { brandName, industry, vibe, target } = await req.json();
 
@@ -54,7 +90,7 @@ export async function POST(req: NextRequest) {
 
 colorsは必ず5色。hexは有効な6桁の16進数カラーコード。ブランド名・業種に合ったデザイン性の高い配色にすること。`;
 
-    const message = await client.messages.create({
+    const message = await getClient().messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
@@ -64,7 +100,8 @@ colorsは必ず5色。hexは有効な6桁の16進数カラーコード。ブラ�
     const jsonStr = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
     const brandKit = JSON.parse(jsonStr);
 
-    return NextResponse.json({ brandKit });
+    const newUsed = (userData.freeUsed || 0) + (userData.plan !== "pro" ? 1 : 0);
+    return NextResponse.json({ brandKit, used: newUsed, limit: FREE_LIMIT, plan: userData.plan || "free" });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "生成に失敗しました。もう一度お試しください。" }, { status: 500 });
