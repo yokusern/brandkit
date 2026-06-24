@@ -86,7 +86,7 @@ function UpgradeModal({ onClose, onUpgrade }: { onClose: () => void; onUpgrade: 
           Proプランで無制限に生成。月額¥980。いつでもキャンセル可。
         </p>
         <div className="border border-stone-100 p-5 mb-6 space-y-3 bg-stone-50">
-          {["ブランドキット生成 無制限", "カラーパレット履歴保存", "複数ブランド管理（近日公開）", "PDFエクスポート（近日公開）"].map(f => (
+          {["ブランドキット生成 無制限", "カラーパレット履歴保存", "全業種・全バイブ対応", "生成履歴の管理"].map(f => (
             <p key={f} className="text-xs text-stone-700 flex items-center gap-2">
               <span className="text-stone-900 font-bold">✓</span> {f}
             </p>
